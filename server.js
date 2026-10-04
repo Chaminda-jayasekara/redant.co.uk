@@ -3,11 +3,16 @@ const cors = require('cors');
 const path = require('path');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
-const { db, run, get, all, initDB } = require('./db');
+const { run, get, all } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = 'redant_secret_key_uk_2026_safe_jwt';
+
+// JWT secret must come from the environment (set JWT_SECRET in Vercel / .env)
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? null : 'dev-only-secret-change-me');
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required in production.');
+}
 
 app.use(cors());
 app.use(express.json());
@@ -33,7 +38,7 @@ function authMiddleware(req, res, next) {
 // Logging helper
 async function logActivity(user, action) {
   try {
-    await run(`INSERT INTO activity_log (user, action) VALUES (?, ?)`, [user, action]);
+    await run(`INSERT INTO activity_log ("user", action) VALUES (?, ?)`, [user, action]);
   } catch (e) {
     console.error('Failed to log activity', e);
   }
@@ -170,8 +175,8 @@ app.post('/api/public/lead', async (req, res) => {
     }
 
     const leadSource = source || 'Free Review Form';
-    const result = await run(
-      `INSERT INTO leads (name, business, url, email, phone, message, source, landing_page_slug, utm_source, utm_medium, utm_campaign, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    const result = await get(
+      `INSERT INTO leads (name, business, url, email, phone, message, source, landing_page_slug, utm_source, utm_medium, utm_campaign, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
       [
         name.trim(),
         business ? business.trim() : '',
@@ -193,7 +198,7 @@ app.post('/api/public/lead', async (req, res) => {
 
     res.json({
       success: true,
-      leadId: result.lastID,
+      leadId: result.id,
       message: 'Thank you! Your website request has been received. We will respond within 24 hours.'
     });
   } catch (err) {
@@ -358,7 +363,7 @@ app.get('/api/admin/leads/export', authMiddleware, async (req, res) => {
     let csv = 'ID,Name,Business,URL,Email,Phone,Source,UTM Source,UTM Medium,UTM Campaign,Status,Created At,Notes\n';
     leads.forEach(l => {
       const cleanNotes = (l.notes || '').replace(/"/g, '""');
-      csv += `"${l.id}","${l.name}","${l.business}","${l.url}","${l.email}","${l.phone}","${l.source}","${l.utm_source}","${l.utm_medium}","${l.utm_campaign}","${l.status}","${l.created_at}","${cleanNotes}"\n`;
+      csv += `"${l.id ?? ''}","${l.name ?? ''}","${l.business ?? ''}","${l.url ?? ''}","${l.email ?? ''}","${l.phone ?? ''}","${l.source ?? ''}","${l.utm_source ?? ''}","${l.utm_medium ?? ''}","${l.utm_campaign ?? ''}","${l.status ?? ''}","${l.created_at ? new Date(l.created_at).toISOString() : ''}","${cleanNotes}"\n`;
     });
 
     res.setHeader('Content-Type', 'text/csv');
@@ -409,7 +414,7 @@ app.post('/api/admin/projects', authMiddleware, async (req, res) => {
     const { name, url, industry, region, desc, initial } = req.body;
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     await run(
-      `INSERT INTO projects (slug, name, url, industry, region, desc, initial, featured, preview_allowed) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)`,
+      `INSERT INTO projects (slug, name, url, industry, region, "desc", initial, featured, preview_allowed) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)`,
       [slug, name, url, industry, region, desc, initial || name.charAt(0)]
     );
     await logActivity(req.user.email, `Added project: ${name}`);
@@ -438,15 +443,16 @@ app.use((req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Start Server
-initDB().then(() => {
+// Export the app for Vercel (see api/index.js).
+module.exports = app;
+
+// Run a normal server only when started directly: node server.js
+if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`==================================================`);
-    console.log(`🚀 RedAnt UK Full Web Application & Backend Active`);
-    console.log(`🌐 Public Website: http://localhost:${PORT}`);
-    console.log(`🔐 Admin Panel:   http://localhost:${PORT}/admin`);
-    console.log(`==================================================`);
+    console.log('==================================================');
+    console.log('RedAnt UK Full Web Application & Backend Active');
+    console.log(`Public Website: http://localhost:${PORT}`);
+    console.log(`Admin Panel:    http://localhost:${PORT}/admin`);
+    console.log('==================================================');
   });
-}).catch(err => {
-  console.error('Database initialization failed:', err);
-});
+}
