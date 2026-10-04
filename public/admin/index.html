@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RedAnt Admin Panel | Backend Management v2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+
+  <!-- Login Modal Overlay -->
+  <div class="login-overlay" id="login-overlay">
+    <div class="login-box">
+      <h2 style="margin-bottom:6px;">🐜 RedAnt Admin v2</h2>
+      <p style="font-weight:600; color:#555; margin-bottom:24px;">Sign in to manage leads, landing pages, offers, and projects.</p>
+      
+      <form id="admin-login-form">
+        <div class="field">
+          <label for="admin-email">Email Address</label>
+          <input type="email" id="admin-email" value="admin@redant.co.uk" required>
+        </div>
+        <div class="field">
+          <label for="admin-pass">Password</label>
+          <input type="password" id="admin-pass" value="redantadmin123!" required>
+        </div>
+        <button type="submit" class="btn" style="width:100%; margin-top:10px;">Login to Admin Panel</button>
+      </form>
+      <div id="login-error" style="display:none; margin-top:16px; color:var(--red); font-weight:800; font-size:0.9rem;"></div>
+    </div>
+  </div>
+
+  <!-- Admin Main Layout -->
+  <div class="admin-layout" id="admin-main" style="display:none;">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <span style="display:inline-block; width:16px; height:16px; border-radius:50%; background:var(--red); box-shadow:-8px 2px 0 -2px var(--yellow), 8px 2px 0 -2px var(--mint);"></span>
+        RedAnt Admin
+      </div>
+      <nav id="admin-nav">
+        <button class="active" data-tab="tab-dashboard">📊 Dashboard</button>
+        <button data-tab="tab-leads">📥 Leads & Enquiries</button>
+        <button data-tab="tab-landing">🚀 Service Landing Pages</button>
+        <button data-tab="tab-campaigns">🎯 Campaign Analytics</button>
+        <button data-tab="tab-offer">🏷️ Launch Offer & Pricing</button>
+        <button data-tab="tab-projects">💼 Portfolio Projects</button>
+        <button data-tab="tab-blog">✍️ Blog Posts</button>
+        <button data-tab="tab-settings">⚙️ Site Content & Settings</button>
+      </nav>
+      <button class="btn alt sm" id="admin-logout" style="margin-top:auto;">Logout</button>
+    </aside>
+
+    <!-- Content Area -->
+    <main class="content">
+      <div class="top-bar">
+        <div>
+          <h2 style="font-size:1.6rem;" id="current-tab-title">Dashboard Overview</h2>
+          <small style="font-weight:700; color:#666;">Connected as: <span id="admin-user-email">admin@redant.co.uk</span></small>
+        </div>
+        <a href="/" target="_blank" class="btn sm yellow">👁️ View Live Website</a>
+      </div>
+
+      <!-- TAB: Dashboard -->
+      <div id="tab-dashboard" class="tab-view active">
+        <div class="stat-grid">
+          <div class="stat-card" style="border-color:var(--navy);">
+            <div style="font-weight:800;">Total Leads</div>
+            <div class="val" id="dash-total-leads">0</div>
+          </div>
+          <div class="stat-card" style="background:var(--yellow);">
+            <div style="font-weight:800;">New Leads</div>
+            <div class="val" id="dash-new-leads">0</div>
+          </div>
+          <div class="stat-card" style="background:var(--mint);">
+            <div style="font-weight:800;">Checkup Audits</div>
+            <div class="val" id="dash-checkups">0</div>
+          </div>
+          <div class="stat-card" style="background:var(--sky);">
+            <div style="font-weight:800;">Active Offer Price</div>
+            <div class="val" id="dash-offer-price">£199</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Recent Enquiries</h3>
+          <div class="table-box" style="margin-top:16px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Name</th>
+                  <th>Business / URL</th>
+                  <th>Email</th>
+                  <th>Source</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="dash-recent-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Leads & Enquiries -->
+      <div id="tab-leads" class="tab-view" style="display:none;">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <h3>Client Leads & Audit Requests</h3>
+            <div style="display:flex; gap:10px;">
+              <select id="leads-filter-select" style="padding:6px 12px; border-radius:8px; border:2px solid var(--navy); font-weight:800;">
+                <option value="All">All Statuses</option>
+                <option value="New">New</option>
+                <option value="Reviewed">Reviewed</option>
+                <option value="Quoted">Quoted</option>
+                <option value="Won">Won</option>
+                <option value="Lost">Lost</option>
+              </select>
+              <a href="/api/admin/leads/export" id="export-csv-btn" class="btn sm mint">📥 Export CSV</a>
+            </div>
+          </div>
+
+          <div class="table-box" style="margin-top:20px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Date</th>
+                  <th>Name & Business</th>
+                  <th>URL / Contact</th>
+                  <th>Source</th>
+                  <th>UTM Source</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="leads-full-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Service Landing Pages Manager -->
+      <div id="tab-landing" class="tab-view" style="display:none;">
+        <div class="card">
+          <h3>🚀 Service Landing Pages & Paid Campaign Mode</h3>
+          <p style="font-weight:600; margin-bottom:16px;">Edit landing page headlines and toggle "Ad Version Mode" (hides navigation bar for paid Google/Meta traffic).</p>
+          
+          <div class="table-box">
+            <table>
+              <thead>
+                <tr>
+                  <th>Slug</th>
+                  <th>Title</th>
+                  <th>Headline</th>
+                  <th>Price From</th>
+                  <th>Ad Version Mode</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="landing-pages-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Campaign Analytics -->
+      <div id="tab-campaigns" class="tab-view" style="display:none;">
+        <div class="card">
+          <h3>🎯 Lead Acquisition & Campaign Attribution</h3>
+          <div class="table-box" style="margin-top:16px;">
+            <h4>Leads Grouped by Source Page:</h4>
+            <table>
+              <thead>
+                <tr>
+                  <th>Source Page</th>
+                  <th>Lead Count</th>
+                </tr>
+              </thead>
+              <tbody id="campaigns-source-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Launch Offer & Pricing Controller -->
+      <div id="tab-offer" class="tab-view" style="display:none;">
+        <div class="card">
+          <h3>🚀 Real-Time Launch Offer Controller</h3>
+          <form id="offer-edit-form">
+            <div class="field">
+              <label for="off-label">Offer Label Text</label>
+              <input type="text" id="off-label" value="launch offer" required>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+              <div class="field">
+                <label for="off-price">Offer Price (£ GBP)</label>
+                <input type="number" id="off-price" value="199" required>
+              </div>
+              <div class="field">
+                <label for="off-regular">Regular Price (£ GBP)</label>
+                <input type="number" id="off-regular" value="349" required>
+              </div>
+            </div>
+            <div class="field">
+              <label style="display:flex; gap:10px; align-items:center; cursor:pointer;">
+                <input type="checkbox" id="off-active" checked style="width:20px; height:20px;">
+                <strong>Offer is Active on Website</strong>
+              </label>
+            </div>
+            <button type="submit" class="btn">Update Launch Offer Across Website</button>
+          </form>
+          <div id="offer-resp" style="display:none; margin-top:16px; padding:12px; background:var(--mint); border:2px solid var(--navy); border-radius:8px; font-weight:800;"></div>
+        </div>
+      </div>
+
+      <!-- TAB: Portfolio Projects -->
+      <div id="tab-projects" class="tab-view" style="display:none;">
+        <div class="card">
+          <h3>Add New Portfolio Project</h3>
+          <form id="add-project-form" style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:16px;">
+            <div class="field">
+              <label>Project Name *</label>
+              <input type="text" id="proj-name" required placeholder="e.g. Acme Plumbing UK">
+            </div>
+            <div class="field">
+              <label>Website URL *</label>
+              <input type="url" id="proj-url" required placeholder="https://acmeplumbing.co.uk">
+            </div>
+            <div class="field">
+              <label>Industry</label>
+              <input type="text" id="proj-ind" placeholder="e.g. Trades & Services">
+            </div>
+            <div class="field">
+              <label>Region</label>
+              <select id="proj-region">
+                <option value="UK">🇬🇧 UK</option>
+                <option value="International">🌐 International</option>
+              </select>
+            </div>
+            <div class="field" style="grid-column: span 2;">
+              <label>Short Description</label>
+              <input type="text" id="proj-desc" placeholder="Brief project summary...">
+            </div>
+            <div style="grid-column: span 2;">
+              <button type="submit" class="btn sm">Add Project to Portfolio</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Existing Projects</h3>
+          <div class="table-box" style="margin-top:16px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Region</th>
+                  <th>Industry</th>
+                  <th>URL</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="projects-table"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: Blog Posts -->
+      <div id="tab-blog" class="tab-view" style="display:none;">
+        <div class="card">
+          <h3>Publish Blog Article</h3>
+          <form id="add-blog-form" style="margin-top:16px;">
+            <div class="field">
+              <label>Article Title *</label>
+              <input type="text" id="blog-title" required placeholder="Article title...">
+            </div>
+            <div class="field">
+              <label>Category</label>
+              <input type="text" id="blog-cat" placeholder="e.g. Pricing Guide, SEO Tips">
+            </div>
+            <div class="field">
+              <label>Excerpt *</label>
+              <input type="text" id="blog-excerpt" required placeholder="Short summary for preview card...">
+            </div>
+            <div class="field">
+              <label>Body (HTML / Text) *</label>
+              <textarea id="blog-body" rows="6" required placeholder="Write article content here..."></textarea>
+            </div>
+            <button type="submit" class="btn">Publish Article</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- TAB: Site Settings -->
+      <div id="tab-settings" class="tab-view" style="display:none;">
+        <div class="card">
+          <h3>Edit Site Headline & Business Information</h3>
+          <form id="settings-form" style="margin-top:16px;">
+            <div class="field">
+              <label>Hero Headline</label>
+              <input type="text" id="set-hero-headline" value="Websites that win customers, built fast, priced fairly.">
+            </div>
+            <div class="field">
+              <label>Hero Subtext</label>
+              <textarea id="set-hero-lead" rows="2">RedAnt builds high-converting, mobile-ready websites for UK small businesses. Delivered in 48 hours to 2 weeks with fixed upfront pricing.</textarea>
+            </div>
+            <div class="field">
+              <label>UK Working Hours Note</label>
+              <input type="text" id="set-uk-hours" value="Mon - Fri: 8:00 AM - 6:00 PM GMT (Instant WhatsApp Response)">
+            </div>
+            <button type="submit" class="btn">Save Site Settings</button>
+          </form>
+          <div id="set-resp" style="display:none; margin-top:16px; padding:12px; background:var(--mint); border:2px solid var(--navy); border-radius:8px; font-weight:800;"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Lead Detail Modal -->
+  <dialog id="lead-modal" style="padding:24px; max-width:550px; border:3px solid var(--navy); border-radius:16px; box-shadow:8px 8px 0 var(--navy);">
+    <h3 id="lead-modal-title">Lead Details</h3>
+    <div id="lead-modal-body" style="margin:16px 0; line-height:1.6;"></div>
+    <div class="field">
+      <label>Update Status:</label>
+      <select id="lead-modal-status">
+        <option value="New">New</option>
+        <option value="Reviewed">Reviewed</option>
+        <option value="Quoted">Quoted</option>
+        <option value="Won">Won</option>
+        <option value="Lost">Lost</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Internal Notes:</label>
+      <textarea id="lead-modal-notes" rows="3"></textarea>
+    </div>
+    <div style="display:flex; gap:10px; margin-top:20px;">
+      <button class="btn sm mint" id="save-lead-modal">Save Lead Changes</button>
+      <button class="btn sm alt" id="close-lead-modal">Close</button>
+      <button class="btn sm" style="background:var(--pink);" id="delete-lead-modal">Delete Lead (GDPR)</button>
+    </div>
+  </dialog>
+
+  <script src="/admin/admin.js"></script>
+</body>
+</html>
