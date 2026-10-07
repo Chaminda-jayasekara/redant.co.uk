@@ -13,11 +13,10 @@
     setupLogin();
     setupTabNavigation();
     setupOfferForm();
-    setupProjectsForm();
-    setupBlogForm();
-    setupSettingsForm();
     setupLeadModal();
   });
+
+  window.RedAntAdmin = { getHeaders: function () { return getHeaders(); }, logout: function () { logout(); } };
 
   function getHeaders() {
     return {
@@ -92,10 +91,9 @@
 
         if (targetTab === "tab-dashboard") loadDashboardData();
         if (targetTab === "tab-leads") loadLeadsData();
-        if (targetTab === "tab-landing") loadLandingPagesData();
         if (targetTab === "tab-campaigns") loadCampaignsData();
         if (targetTab === "tab-offer") loadOfferData();
-        if (targetTab === "tab-projects") loadProjectsData();
+        document.dispatchEvent(new CustomEvent("admin-tab", { detail: targetTab }));
       };
     });
   }
@@ -226,54 +224,6 @@
     };
   }
 
-  // Load & Manage Landing Pages
-  function loadLandingPagesData() {
-    fetch("/api/admin/landing-pages", { headers: getHeaders() })
-      .then(res => res.json())
-      .then(pages => {
-        const tbody = document.getElementById("landing-pages-table");
-        tbody.innerHTML = "";
-
-        pages.forEach(p => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td><code>/${p.slug}</code></td>
-            <td><strong>${p.title}</strong></td>
-            <td>${p.headline}</td>
-            <td>£${p.price_from}</td>
-            <td>
-              <label style="cursor:pointer; font-weight:800;">
-                <input type="checkbox" class="ad-toggle" data-slug="${p.slug}" ${p.ad_version ? 'checked' : ''}>
-                Ad Version (No Nav)
-              </label>
-            </td>
-            <td><a href="/#${p.slug}" target="_blank" class="btn sm yellow">Preview Page</a></td>
-          `;
-          tbody.appendChild(tr);
-        });
-
-        document.querySelectorAll(".ad-toggle").forEach(chk => {
-          chk.onchange = function () {
-            const slug = chk.dataset.slug;
-            const page = pages.find(item => item.slug === slug);
-            if (page) {
-              fetch(`/api/admin/landing/${slug}`, {
-                method: "PUT",
-                headers: getHeaders(),
-                body: JSON.stringify({
-                  headline: page.headline,
-                  subtext: page.subtext,
-                  cta_text: page.cta_text,
-                  price_from: page.price_from,
-                  ad_version: chk.checked
-                })
-              });
-            }
-          };
-        });
-      });
-  }
-
   // Load Campaign Analytics
   function loadCampaignsData() {
     fetch("/api/admin/campaigns", { headers: getHeaders() })
@@ -327,118 +277,6 @@
         .then(data => {
           resp.style.display = "block";
           resp.textContent = "✅ " + data.message;
-        });
-    };
-  }
-
-  function loadProjectsData() {
-    fetch("/api/public/content")
-      .then(res => res.json())
-      .then(data => {
-        const tbody = document.getElementById("projects-table");
-        tbody.innerHTML = "";
-
-        data.projects.forEach(p => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td><strong>${p.name}</strong></td>
-            <td>${p.region || 'UK'}</td>
-            <td>${p.industry || 'General'}</td>
-            <td><a href="${p.url}" target="_blank">${p.url}</a></td>
-            <td><button class="btn sm del-proj-btn" data-id="${p.id}" style="background:var(--pink);">Delete</button></td>
-          `;
-          tbody.appendChild(tr);
-        });
-
-        document.querySelectorAll(".del-proj-btn").forEach(btn => {
-          btn.onclick = function () {
-            if (confirm("Delete project?")) {
-              fetch(`/api/admin/projects/${btn.dataset.id}`, {
-                method: "DELETE",
-                headers: getHeaders()
-              }).then(() => loadProjectsData());
-            }
-          };
-        });
-      });
-  }
-
-  function setupProjectsForm() {
-    const form = document.getElementById("add-project-form");
-    form.onsubmit = function (e) {
-      e.preventDefault();
-      const body = {
-        name: document.getElementById("proj-name").value,
-        url: document.getElementById("proj-url").value,
-        industry: document.getElementById("proj-ind").value,
-        region: document.getElementById("proj-region").value,
-        desc: document.getElementById("proj-desc").value
-      };
-
-      fetch("/api/admin/projects", {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify(body)
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            form.reset();
-            loadProjectsData();
-          }
-        });
-    };
-  }
-
-  function setupBlogForm() {
-    const form = document.getElementById("add-blog-form");
-    form.onsubmit = function (e) {
-      e.preventDefault();
-      const body = {
-        title: document.getElementById("blog-title").value,
-        category: document.getElementById("blog-cat").value,
-        excerpt: document.getElementById("blog-excerpt").value,
-        body: document.getElementById("blog-body").value
-      };
-
-      fetch("/api/admin/blog", {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify(body)
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            alert("Blog article published!");
-            form.reset();
-          }
-        });
-    };
-  }
-
-  function setupSettingsForm() {
-    const form = document.getElementById("settings-form");
-    const resp = document.getElementById("set-resp");
-
-    form.onsubmit = function (e) {
-      e.preventDefault();
-      const body = {
-        hero_headline: document.getElementById("set-hero-headline").value,
-        hero_lead: document.getElementById("set-hero-lead").value,
-        uk_hours: document.getElementById("set-uk-hours").value
-      };
-
-      fetch("/api/admin/settings", {
-        method: "PUT",
-        headers: getHeaders(),
-        body: JSON.stringify(body)
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            resp.style.display = "block";
-            resp.textContent = "✅ Settings saved successfully!";
-          }
         });
     };
   }

@@ -19,7 +19,6 @@
     setupMobileNav();
     setupCompareSlider();
     setupCheckupTool();
-    setupPreviewModal();
     setupForms();
     setupCookieBanner();
   });
@@ -39,10 +38,17 @@
 
   // Render All Sections
   function renderAllSections(data) {
-    // 1. Settings & Launch Offer
+    // 0. Editable site text, contact details, logos, service page heroes (from admin)
+    applySiteSettings(data.settings || {});
+    applyLandingPages(data.landingPages || []);
+
+    // 1. Launch Offer
     if (data.offer) {
       const priceText = "£" + data.offer.offer_price;
-      document.querySelectorAll("#sticker-price").forEach(el => el.textContent = priceText);
+      document.querySelectorAll("#sticker-price, .js-offer-price").forEach(el => el.textContent = priceText);
+      document.querySelectorAll("#sticker-label, .js-offer-label").forEach(el => {
+        if (data.offer.label) el.textContent = data.offer.label;
+      });
     }
 
     // 2. Marquee Ticker
@@ -71,6 +77,75 @@
 
     // 10. FAQs Accordion
     renderFAQs(data.faqs || []);
+  }
+
+
+  // ---------- Admin-editable content ----------
+  // Elements marked data-cms="key" are overridden by the matching value in the
+  // settings table. If no value is saved, the text written in index.html is used.
+  function setHeading(el, value) {
+    // "Websites that *win customers,* built fast" -> highlighted span
+    el.textContent = "";
+    value.split(/(\*[^*]+\*)/).forEach(part => {
+      if (!part) return;
+      if (part.length > 2 && part[0] === "*" && part[part.length - 1] === "*") {
+        const span = document.createElement("span");
+        span.className = "hl";
+        span.textContent = part.slice(1, -1);
+        el.appendChild(span);
+      } else {
+        el.appendChild(document.createTextNode(part));
+      }
+    });
+  }
+
+  function applySiteSettings(st) {
+    document.querySelectorAll("[data-cms]").forEach(el => {
+      const key = el.dataset.cms;
+      const v = st[key];
+      if (v === undefined || v === null || v === "") return;
+      const attr = el.dataset.cmsAttr;
+      const type = el.dataset.cmsType || "text";
+      if (attr) el.setAttribute(attr, v);
+      else if (type === "heading") setHeading(el, v);
+      else if (type === "html") el.innerHTML = v;
+      else el.textContent = v;
+    });
+
+    // Contact details used across the site
+    const digits = s => String(s || "").replace(/[^\d]/g, "");
+    if (st.whatsapp) {
+      document.querySelectorAll("a.js-wa").forEach(a => {
+        a.href = "https://wa.me/" + digits(st.whatsapp);
+        if (a.classList.contains("js-wa-text")) a.textContent = st.whatsapp;
+      });
+    }
+    if (st.email) {
+      document.querySelectorAll("a.js-email").forEach(a => {
+        a.href = "mailto:" + st.email;
+        if (a.classList.contains("js-email-text")) a.textContent = st.email;
+      });
+    }
+    if (st.phone) {
+      document.querySelectorAll("a.js-phone").forEach(a => {
+        a.href = "tel:" + String(st.phone).replace(/[^\d+]/g, "");
+      });
+    }
+    if (st["seo.title"]) document.title = st["seo.title"];
+  }
+
+  // Service landing page heroes come from the landing_pages table
+  function applyLandingPages(pages) {
+    pages.forEach(lp => {
+      const view = document.getElementById("view-" + lp.slug);
+      if (!view) return;
+      const h = view.querySelector('[data-lp="headline"]');
+      const sub = view.querySelector('[data-lp="subtext"]');
+      const cta = view.querySelector('[data-lp="cta_text"]');
+      if (h && lp.headline) setHeading(h, lp.headline);
+      if (sub && lp.subtext) sub.textContent = lp.subtext;
+      if (cta && lp.cta_text) cta.textContent = lp.cta_text;
+    });
   }
 
   // Responsive Mobile Navigation Logic (<1024px)
@@ -206,21 +281,12 @@
     const row = document.createElement("div");
     row.className = "row";
 
-    if (p.preview_allowed) {
-      const pv = document.createElement("button");
-      pv.type = "button";
-      pv.className = "pv-btn";
-      pv.textContent = "Live preview";
-      pv.dataset.name = p.name;
-      pv.dataset.url = p.url;
-      row.appendChild(pv);
-    }
-
     const v = document.createElement("a");
     v.href = p.url;
     v.target = "_blank";
     v.rel = "noopener";
-    v.textContent = "Visit site";
+    v.textContent = "Visit site →";
+    v.className = "visit-btn";
     row.appendChild(v);
 
     el.appendChild(row);
@@ -228,12 +294,6 @@
   }
 
   function bindTileButtons() {
-    document.querySelectorAll(".pv-btn").forEach(btn => {
-      btn.onclick = function () {
-        openPreview(btn.dataset.name, btn.dataset.url);
-      };
-    });
-
     // Portfolio Filters
     document.querySelectorAll(".filter-btn").forEach(btn => {
       btn.onclick = function () {
@@ -474,6 +534,17 @@
         document.body.classList.remove("ad-mode");
       }
 
+      if (siteData && siteData.landingPages) {
+        const lp = siteData.landingPages.find(x => x.slug === target);
+        if (lp && lp.meta_title) document.title = lp.meta_title;
+        else if (siteData.settings && siteData.settings["seo.title"]) document.title = siteData.settings["seo.title"];
+        const md = document.querySelector('meta[name="description"]');
+        if (md) {
+          if (lp && lp.meta_desc) md.setAttribute("content", lp.meta_desc);
+          else if (siteData.settings && siteData.settings["seo.description"]) md.setAttribute("content", siteData.settings["seo.description"]);
+        }
+      }
+
       window.scrollTo(0, 0);
     }
 
@@ -492,50 +563,6 @@
     }
     r.addEventListener("input", set);
     set();
-  }
-
-  // Live Website Preview Modal Logic
-  function openPreview(name, url) {
-    const dlg = document.getElementById("pv");
-    const fr = document.getElementById("pvf");
-    const pb = document.getElementById("pvb");
-    const msg = document.getElementById("pvmsg");
-
-    document.getElementById("pvn").textContent = name;
-    document.getElementById("pvl").href = url;
-    pb.className = "pvb";
-
-    if (url.indexOf("http:") === 0) {
-      fr.removeAttribute("src");
-      fr.style.display = "none";
-      msg.style.display = "block";
-      msg.textContent = "This site is served over plain HTTP, which browsers block inside a secure page. Use 'Visit site' button to open it directly.";
-    } else {
-      msg.style.display = "none";
-      fr.style.display = "block";
-      fr.src = url;
-    }
-
-    dlg.showModal();
-  }
-
-  function setupPreviewModal() {
-    const dlg = document.getElementById("pv");
-    const fr = document.getElementById("pvf");
-    const pb = document.getElementById("pvb");
-    const xBtn = document.getElementById("pvx");
-
-    if (!dlg) return;
-
-    function closePv() {
-      dlg.close();
-      fr.removeAttribute("src");
-    }
-
-    xBtn.onclick = closePv;
-    document.getElementById("pvd").onclick = function () { pb.className = "pvb"; };
-    document.getElementById("pvm").onclick = function () { pb.className = "pvb m"; };
-    dlg.addEventListener("click", function (e) { if (e.target === dlg) closePv(); });
   }
 
   // Form Submissions (Free Review & Contact) with UTM parameters

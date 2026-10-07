@@ -65,6 +65,7 @@ app.get('/api/public/content', async (req, res) => {
     const blogPosts = await all(`SELECT * FROM blog_posts WHERE status = 'published' ORDER BY id DESC`);
     const industries = await all(`SELECT * FROM industries ORDER BY order_num ASC`);
 
+    res.set('Cache-Control', 'public, max-age=0, s-maxage=20, stale-while-revalidate=60');
     res.json({
       settings,
       offer: activeOffer || { label: 'launch offer', offer_price: 199, regular_price: 349, active: 1 },
@@ -408,29 +409,182 @@ app.put('/api/admin/offer', authMiddleware, async (req, res) => {
   }
 });
 
-// Manage Projects
-app.post('/api/admin/projects', authMiddleware, async (req, res) => {
+/* ==========================================================================
+   CONTENT MANAGEMENT (admin): site text/settings + every content table
+   ========================================================================== */
+
+// --- Site text & contact settings (key/value) ---
+app.get('/api/admin/settings', authMiddleware, async (req, res) => {
   try {
-    const { name, url, industry, region, desc, initial } = req.body;
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    await run(
-      `INSERT INTO projects (slug, name, url, industry, region, "desc", initial, featured, preview_allowed) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)`,
-      [slug, name, url, industry, region, desc, initial || name.charAt(0)]
-    );
-    await logActivity(req.user.email, `Added project: ${name}`);
-    res.json({ success: true });
+    const rows = await all(`SELECT key, value FROM settings`);
+    const settings = {};
+    rows.forEach(r => { settings[r.key] = r.value; });
+    res.json({ settings });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to add project' });
+    res.status(500).json({ error: 'Failed to load settings' });
   }
 });
 
-app.delete('/api/admin/projects/:id', authMiddleware, async (req, res) => {
+// Body: { settings: { key: "value", ... }, remove: ["key", ...] }
+// "remove" resets a field back to the default text written in index.html.
+app.put('/api/admin/settings', authMiddleware, async (req, res) => {
   try {
-    await run(`DELETE FROM projects WHERE id = ?`, [req.params.id]);
-    await logActivity(req.user.email, `Deleted project ID #${req.params.id}`);
+    const incoming = req.body.settings || {};
+    const remove = Array.isArray(req.body.remove) ? req.body.remove : [];
+    const keys = Object.keys(incoming);
+    if (keys.length > 500 || remove.length > 500) return res.status(400).json({ error: 'Too many fields' });
+
+    for (const key of keys) {
+      if (typeof key !== 'string' || key.length > 120) continue;
+      const value = incoming[key] === null ? '' : String(incoming[key]);
+      if (value.length > 50000) return res.status(400).json({ error: `Value for "${key}" is too long` });
+      await run(
+        `INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+        [key, value]
+      );
+    }
+    for (const key of remove) {
+      await run(`DELETE FROM settings WHERE key = ?`, [String(key)]);
+    }
+    await logActivity(req.user.email, `Updated site content (${keys.length} saved, ${remove.length} reset)`);
+    res.json({ success: true, message: 'Site content saved. It is live on the website now.' });
+  } catch (err) {
+    console.error('Settings save error:', err);
+    res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+// --- Generic editor for each content table (whitelisted tables and columns only) ---
+const CONTENT_TABLES = {
+  services:      { label: 'service',     order: 'order_num ASC, id ASC', title: 'name',
+                   cols: ['slug','name','short_desc','long_desc','price_from','features_json','not_included_json','process_json','icon','path_card_text','order_num'] },
+  pricing_plans: { label: 'pricing plan', order: 'order_num ASC, id ASC', title: 'name',
+                   cols: ['name','price','billing_type','badge','features_json','order_num'] },
+  projects:      { label: 'project',     order: 'order_num ASC, id ASC', title: 'name',
+                   cols: ['slug','name','url','industry','region','desc','initial','featured','built_at_webpixel','case_study_json','order_num'] },
+  testimonials:  { label: 'testimonial', order: 'order_num ASC, id ASC', title: 'client_name',
+                   cols: ['client_name','business','town','quote','rating','featured','order_num'] },
+  industries:    { label: 'industry',    order: 'order_num ASC, id ASC', title: 'name',
+                   cols: ['slug','name','intro','problems_json','cta_text','order_num'] },
+  faqs:          { label: 'FAQ',         order: 'order_num ASC, id ASC', title: 'question',
+                   cols: ['question','answer','category','order_num'] },
+  blog_posts:    { label: 'blog post',   order: 'id DESC',               title: 'title',
+                   cols: ['slug','title','excerpt','body','category','publish_date','status'] },
+  landing_pages: { label: 'service page', order: 'id ASC',               title: 'title',
+                   cols: ['slug','title','headline','subtext','cta_text','price_from','ad_version','meta_title','meta_desc','status'] }
+};
+const INT_COLS = new Set(['price_from','order_num','rating','featured','built_at_webpixel','ad_version']);
+
+function contentTable(req, res, next) {
+  const cfg = Object.prototype.hasOwnProperty.call(CONTENT_TABLES, req.params.table) ? CONTENT_TABLES[req.params.table] : null;
+  if (!cfg) return res.status(404).json({ error: 'Unknown content type' });
+  req.cfg = cfg;
+  req.table = req.params.table;
+  next();
+}
+
+function cleanValue(col, v) {
+  if (INT_COLS.has(col)) {
+    if (v === true) return 1;
+    if (v === false) return 0;
+    if (v === '' || v === null || v === undefined) return col === 'price_from' ? null : 0;
+    const n = parseInt(v, 10);
+    return Number.isNaN(n) ? 0 : n;
+  }
+  if (v === null || v === undefined) return '';
+  const str = String(v);
+  if (str.length > 100000) throw new Error(`Value for "${col}" is too long`);
+  return str;
+}
+
+function slugify(text) {
+  return String(text || 'item').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'item';
+}
+
+function pickCols(cfg, body) {
+  const out = {};
+  cfg.cols.forEach(col => {
+    if (Object.prototype.hasOwnProperty.call(body, col)) out[col] = cleanValue(col, body[col]);
+  });
+  return out;
+}
+
+const q = col => `"${col}"`; // quote identifiers ("desc" is reserved in Postgres)
+
+app.get('/api/admin/content/:table', authMiddleware, contentTable, async (req, res) => {
+  try {
+    const rows = await all(`SELECT * FROM ${req.table} ORDER BY ${req.cfg.order}`);
+    res.json(rows);
+  } catch (err) {
+    console.error('Content list error:', err);
+    res.status(500).json({ error: 'Failed to load content' });
+  }
+});
+
+app.post('/api/admin/content/:table', authMiddleware, contentTable, async (req, res) => {
+  try {
+    const data = pickCols(req.cfg, req.body || {});
+    const hasSlug = req.cfg.cols.includes('slug');
+    const titleVal = data[req.cfg.title];
+    if (!titleVal) return res.status(400).json({ error: `Please fill in "${req.cfg.title}"` });
+
+    if (req.cfg.cols.includes('order_num') && data.order_num === undefined) {
+      const max = await get(`SELECT COALESCE(MAX(order_num), 0) AS m FROM ${req.table}`);
+      data.order_num = (max ? max.m : 0) + 1;
+    }
+    if (req.table === 'blog_posts' && !data.publish_date) data.publish_date = new Date().toISOString().slice(0, 10);
+    if (req.table === 'blog_posts' && !data.status) data.status = 'published';
+    if (req.table === 'projects' && !data.initial) data.initial = String(titleVal).charAt(0).toUpperCase();
+
+    const baseSlug = hasSlug ? slugify(data.slug || titleVal) : null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (hasSlug) data.slug = attempt === 0 ? baseSlug : `${baseSlug}-${Math.floor(Math.random() * 9000 + 1000)}`;
+      const cols = Object.keys(data);
+      try {
+        const row = await get(
+          `INSERT INTO ${req.table} (${cols.map(q).join(', ')}) VALUES (${cols.map(() => '?').join(', ')}) RETURNING *`,
+          cols.map(c => data[c])
+        );
+        await logActivity(req.user.email, `Added ${req.cfg.label}: ${titleVal}`);
+        return res.json({ success: true, row });
+      } catch (err) {
+        if (err.code === '23505' && hasSlug) continue; // slug already used, retry with a suffix
+        throw err;
+      }
+    }
+    res.status(409).json({ error: 'Could not create a unique slug' });
+  } catch (err) {
+    console.error('Content create error:', err);
+    res.status(500).json({ error: err.message || 'Failed to create item' });
+  }
+});
+
+app.put('/api/admin/content/:table/:id', authMiddleware, contentTable, async (req, res) => {
+  try {
+    const data = pickCols(req.cfg, req.body || {});
+    const cols = Object.keys(data);
+    if (!cols.length) return res.status(400).json({ error: 'Nothing to update' });
+    const row = await get(
+      `UPDATE ${req.table} SET ${cols.map(c => `${q(c)} = ?`).join(', ')} WHERE id = ? RETURNING *`,
+      [...cols.map(c => data[c]), parseInt(req.params.id, 10)]
+    );
+    if (!row) return res.status(404).json({ error: 'Item not found' });
+    await logActivity(req.user.email, `Edited ${req.cfg.label}: ${row[req.cfg.title] || '#' + req.params.id}`);
+    res.json({ success: true, row });
+  } catch (err) {
+    console.error('Content update error:', err);
+    res.status(500).json({ error: err.code === '23505' ? 'That slug is already used by another item' : (err.message || 'Failed to save') });
+  }
+});
+
+app.delete('/api/admin/content/:table/:id', authMiddleware, contentTable, async (req, res) => {
+  try {
+    await run(`DELETE FROM ${req.table} WHERE id = ?`, [parseInt(req.params.id, 10)]);
+    await logActivity(req.user.email, `Deleted ${req.cfg.label} #${req.params.id}`);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to delete project' });
+    console.error('Content delete error:', err);
+    res.status(500).json({ error: 'Failed to delete item' });
   }
 });
 
