@@ -56,7 +56,8 @@
         <button data-tab="tab-offer">🏷️ Launch Offer</button>
         <button data-tab="tab-projects">💼 Portfolio</button>
         <button data-tab="tab-testimonials">💬 Testimonials</button>
-        <button data-tab="tab-industries">🏢 Who We Help</button>
+        <button data-tab="tab-industries">🏢 Who We Help (industries)</button>
+        <button data-tab="tab-locations">🏙️ City Pages</button>
         <button data-tab="tab-faqs">❓ FAQs</button>
         <button data-tab="tab-blog_posts">✍️ Blog Posts</button>
       </nav>
@@ -225,14 +226,30 @@
         <div class="card">
           <h3>Business & contact details</h3>
           <p class="hint">Used for every WhatsApp, email and call button, the footer and the mobile menu.</p>
-          <form id="contact-settings-form" style="margin-top:16px; max-width:640px;">
+          <form id="contact-settings-form" style="margin-top:16px; max-width:680px;">
             <div class="field"><label for="cs-whatsapp">WhatsApp number (with country code)</label>
               <input type="text" id="cs-whatsapp" placeholder="+94 76 644 1645"></div>
             <div class="field"><label for="cs-email">Public email address</label>
               <input type="email" id="cs-email" placeholder="hello@redant.co.uk"></div>
-            <div class="field"><label for="cs-phone">UK phone number (for the "Call UK" button)</label>
-              <input type="text" id="cs-phone" placeholder="+44 20 7946 0912"></div>
-            <button type="submit" class="btn">💾 Save contact details</button>
+            <div class="field"><label for="cs-phone">UK phone number (shows a Call button)</label>
+              <input type="text" id="cs-phone" placeholder="Leave blank until you have a real, working number">
+              <p class="hint">Numbers like 020 7946 0xxx are reserved for TV drama and never connect, so the site hides them automatically.</p></div>
+            <div class="field"><label for="cs-booking">Booking link for "book a 15-minute call" (optional)</label>
+              <input type="text" id="cs-booking" placeholder="https://calendly.com/…"></div>
+            <h3 style="margin:22px 0 6px;">Trust details (shown in the footer)</h3>
+            <div class="field"><label for="cs-company">Company or sole-trader details</label>
+              <input type="text" id="cs-company" placeholder="e.g. RedAnt, sole trader, Remote studio serving the UK"></div>
+            <div class="field"><label for="cs-ico">ICO registration number (if you have one)</label>
+              <input type="text" id="cs-ico" placeholder="ZA…"></div>
+            <h3 style="margin:22px 0 6px;">Analytics &amp; Search Console</h3>
+            <p class="hint">Analytics only runs after a visitor accepts cookies. Tracks form submits, WhatsApp, call and email clicks as conversions.</p>
+            <div class="field"><label for="cs-ga4">Google Analytics 4 measurement ID</label>
+              <input type="text" id="cs-ga4" placeholder="G-XXXXXXXXXX"></div>
+            <div class="field"><label for="cs-pixel">Meta (Facebook) Pixel ID</label>
+              <input type="text" id="cs-pixel" placeholder="1234567890123456"></div>
+            <div class="field"><label for="cs-gsc">Google Search Console verification code</label>
+              <input type="text" id="cs-gsc" placeholder="the content value of the google-site-verification tag"></div>
+            <button type="submit" class="btn">💾 Save</button>
           </form>
           <div id="cs-msg" class="msg" style="display:none;"></div>
         </div>
@@ -245,6 +262,7 @@
       <div id="tab-projects" class="tab-view table-editor" data-table="projects" style="display:none;"></div>
       <div id="tab-testimonials" class="tab-view table-editor" data-table="testimonials" style="display:none;"></div>
       <div id="tab-industries" class="tab-view table-editor" data-table="industries" style="display:none;"></div>
+      <div id="tab-locations" class="tab-view table-editor" data-table="locations" style="display:none;"></div>
       <div id="tab-faqs" class="tab-view table-editor" data-table="faqs" style="display:none;"></div>
       <div id="tab-blog_posts" class="tab-view table-editor" data-table="blog_posts" style="display:none;"></div>
 

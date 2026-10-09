@@ -172,7 +172,7 @@
     if (cform) cform.onsubmit = async e => {
       e.preventDefault();
       const msg = document.getElementById("cs-msg");
-      const map = { whatsapp: "cs-whatsapp", email: "cs-email", phone: "cs-phone" };
+      const map = { whatsapp: "cs-whatsapp", email: "cs-email", phone: "cs-phone", "booking.url": "cs-booking", "trust.company_details": "cs-company", "trust.ico": "cs-ico", "analytics.ga4_id": "cs-ga4", "analytics.meta_pixel_id": "cs-pixel", "analytics.gsc_verification": "cs-gsc" };
       const settings = {}, remove = [];
       Object.entries(map).forEach(([k, id]) => {
         const v = document.getElementById(id).value.trim();
@@ -188,9 +188,8 @@
   async function loadContact() {
     try {
       const { settings } = await api("/api/admin/settings");
-      document.getElementById("cs-whatsapp").value = settings.whatsapp || "";
-      document.getElementById("cs-email").value = settings.email || "";
-      document.getElementById("cs-phone").value = settings.phone || "";
+      const m = { whatsapp: "cs-whatsapp", email: "cs-email", phone: "cs-phone", "booking.url": "cs-booking", "trust.company_details": "cs-company", "trust.ico": "cs-ico", "analytics.ga4_id": "cs-ga4", "analytics.meta_pixel_id": "cs-pixel", "analytics.gsc_verification": "cs-gsc" };
+      Object.entries(m).forEach(([k, id]) => { document.getElementById(id).value = settings[k] || ""; });
     } catch (err) { flash(document.getElementById("cs-msg"), err.message, true); }
   }
 
@@ -207,7 +206,7 @@
         { k: "headline", l: "Main headline", t: "text", wide: true, sub: "Example: Your website, *refreshed in 48 hours.*" },
         { k: "subtext", l: "Sub-text under the headline", t: "textarea", wide: true },
         { k: "cta_text", l: "Main button text", t: "text" },
-        { k: "meta_title", l: "Browser tab / Google title", t: "text" },
+        { k: "meta_title", l: "Google title (max 60 characters)", t: "text" },
         { k: "meta_desc", l: "Google description", t: "textarea", wide: true }
       ]
     },
@@ -262,13 +261,32 @@
       ]
     },
     industries: {
-      title: "Who We Help", help: "Industry cards on the Who We Help page.",
-      titleField: "name", subField: "cta_text", canAdd: true, canDelete: true,
+      title: "Who We Help (industry pages)", help: "Each industry gets its own page at /web-design-for-<slug>. The heading and intro are what visitors and Google see first.",
+      titleField: "name", subField: "slug", canAdd: true, canDelete: true,
       fields: [
         { k: "name", l: "Industry name", t: "text" },
-        { k: "cta_text", l: "Button text", t: "text" },
-        { k: "intro", l: "Intro", t: "textarea", wide: true },
+        { k: "slug", l: "Page address ending (e.g. clinics)", t: "text", sub: "Page will be /web-design-for-<this>" },
+        { k: "h1", l: "Page heading", t: "text", wide: true },
+        { k: "intro", l: "Intro paragraph", t: "textarea", wide: true },
         { k: "problems_json", l: "Typical website problems (one per line)", t: "list", wide: true },
+        { k: "faqs_json", l: "FAQs (one per line: Question | Answer)", t: "qa", wide: true },
+        { k: "cta_text", l: "Button text on the hub page", t: "text" },
+        { k: "meta_title", l: "Google title (max 60 characters)", t: "text" },
+        { k: "meta_desc", l: "Google description (max 155 characters)", t: "textarea", wide: true },
+        { k: "order_num", l: "Order (1 = first)", t: "number" }
+      ]
+    },
+    locations: {
+      title: "City Pages", help: "One page per city at /web-design-<city>. Give each a genuinely different intro. Add a real local example only if you have one; it stays hidden while empty.",
+      titleField: "city", subField: "slug", canAdd: true, canDelete: true,
+      fields: [
+        { k: "city", l: "City", t: "text" },
+        { k: "slug", l: "Page address (e.g. web-design-leeds)", t: "text" },
+        { k: "h1", l: "Page heading", t: "text", wide: true },
+        { k: "intro", l: "Intro paragraph (unique to this city)", t: "textarea", wide: true },
+        { k: "local_example", l: "Local example (optional, only if true)", t: "textarea", wide: true },
+        { k: "meta_title", l: "Google title (max 60 characters)", t: "text" },
+        { k: "meta_desc", l: "Google description (max 155 characters)", t: "textarea", wide: true },
         { k: "order_num", l: "Order (1 = first)", t: "number" }
       ]
     },
@@ -310,6 +328,12 @@
       node = h("textarea", { rows: 5 });
       if (lines) { node.value = lines.join("\n"); get = () => JSON.stringify(node.value.split("\n").map(s => s.trim()).filter(Boolean)); }
       else { node.value = raw; get = () => node.value; }
+    } else if (f.t === "qa") {
+      let lines = null;
+      try { const arr = JSON.parse(raw || "[]"); if (Array.isArray(arr) && arr.every(x => x && typeof x.q === "string")) lines = arr.map(x => x.q + " | " + x.a); } catch (e) {}
+      node = h("textarea", { rows: 7 });
+      node.value = lines ? lines.join("\n") : raw;
+      get = () => JSON.stringify(node.value.split("\n").map(l => l.trim()).filter(Boolean).map(l => { const i = l.indexOf("|"); return i < 0 ? { q: l, a: "" } : { q: l.slice(0, i).trim(), a: l.slice(i + 1).trim() }; }));
     } else if (f.t === "select") {
       node = h("select", {}, f.options.map(o => h("option", { value: o, text: o })));
       node.value = f.options.includes(raw) ? raw : f.options[0]; get = () => node.value;
