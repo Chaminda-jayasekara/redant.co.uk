@@ -139,7 +139,9 @@ header {
   position: absolute;
   top: 100%;
   left: 0;
-  width: 250px;
+  width: max-content;
+  min-width: 250px;
+  max-width: calc(100vw - 32px);
   background: #fff;
   color: var(--navy);
   border: 3px solid var(--navy);
@@ -163,6 +165,7 @@ header {
   font-size: 0.9rem;
   padding: 8px 12px;
   border-radius: 8px;
+  white-space: nowrap;
 }
 
 .dropdown-menu a:hover {
@@ -360,7 +363,12 @@ header .btn {
   background: var(--yellow);
   padding: 70px 0 95px;
   overflow: hidden;
+  position: relative;
+  isolation: isolate;
 }
+
+/* keep hero text above the decorative circles */
+.hero > .wrap { position: relative; z-index: 2; }
 
 .hero::before {
   content: "";
@@ -371,7 +379,7 @@ header .btn {
   height: 420px;
   border-radius: 50%;
   background: var(--pink);
-  z-index: 0;
+  z-index: -1;
 }
 
 .hero::after {
@@ -383,7 +391,7 @@ header .btn {
   height: 300px;
   border-radius: 50%;
   background: var(--mint);
-  z-index: 0;
+  z-index: -1;
 }
 
 .sticker {
